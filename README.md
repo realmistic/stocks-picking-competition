@@ -3,6 +3,18 @@
 
 This repository hosts a friendly paper trading competition among a group of financial analysts. Each participant has selected a portfolio of stocks from various global exchanges and currencies, and we're tracking their performance over time.
 
+### Dashboard
+
+The project includes a Streamlit dashboard that visualizes the competition data. The dashboard shows:
+
+- Portfolio weight distribution by person
+- Portfolio allocations by person and stock
+- Portfolio performance over time
+- Percentage change since start date
+- Performance summary with total and annualized returns
+
+The dashboard uses a local SQLite database to store the data, which can be easily migrated to SQLite Cloud later.
+
 ### Competition Overview
 - **Time Period**: First half of 2025
 - **Starting Capital**: $100,000 (paper money)
@@ -26,6 +38,45 @@ source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+```
+
+## Running the Dashboard
+
+To run the dashboard:
+
+```bash
+# Activate your virtual environment
+source .venv/bin/activate  # On macOS/Linux
+# .venv\Scripts\activate   # On Windows
+
+# Run the dashboard
+python main.py
+```
+
+The dashboard will:
+1. Initialize the SQLite database if it doesn't exist
+2. Prompt you to load initial data if the database is empty
+3. Display visualizations of the competition data
+4. Allow you to refresh the data with the latest stock prices
+
+## Project Structure
+
+```
+stocks-picking-competition/
+├── data/                  # Directory for SQLite database
+│   └── stocks.db          # Local SQLite database
+├── src/                   # Source code
+│   ├── __init__.py
+│   ├── db/                # Database related code
+│   │   ├── __init__.py
+│   │   ├── models.py      # SQLAlchemy models
+│   │   └── database.py    # Database connection and operations
+│   ├── data_processing.py # Data processing functions
+│   └── dashboard.py       # Streamlit dashboard
+├── main.py                # Main entry point
+├── manual_start.ipynb     # Original notebook with data processing
+├── requirements.txt
+└── README.md
 ```
 
 ## Dependencies
