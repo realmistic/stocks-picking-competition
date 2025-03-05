@@ -12,7 +12,7 @@ from src.db.models import Position, DailyPrice, ExchangeRate, PortfolioValue, Pe
 # Constants
 INITIAL_VALUE_USD = 1e5
 START_DATE = '2000-01-01'
-FIXED_DATE = '2025-02-21'
+FIXED_DATE = '2025-03-01'
 
 def get_formatted_ticker(ticker, exchange):
     """
@@ -50,27 +50,42 @@ def load_positions():
         list: List of position dictionaries
     """
     return [
+        {'name': 'Apoorva', 'ticker': 'TSM', 'exchange':'NYSE', 'weight': 0.4},
+        {'name': 'Apoorva', 'ticker': 'GOOGL', 'exchange':'NASDAQ', 'weight': 0.1},
+        {'name': 'Apoorva', 'ticker': 'TAK', 'exchange':'NYSE', 'weight': 0.25},
+        {'name': 'Apoorva', 'ticker': '0700', 'exchange':'HKG', 'weight': 0.25},
+
+        {'name': 'Alessandro', 'ticker': 'DUOL', 'exchange':'NASDAQ', 'weight': 0.4},
+        {'name': 'Alessandro', 'ticker': 'GOOG', 'exchange':'NASDAQ', 'weight': 0.25},
+        {'name': 'Alessandro', 'ticker': 'ZG', 'exchange':'NASDAQ', 'weight': 0.35},
+
         {'name': 'Ivan', 'ticker': 'VST', 'exchange':'NYSE', 'weight': 0.4},
         {'name': 'Ivan', 'ticker': 'EXPE', 'exchange':'NASDAQ', 'weight': 0.3},
         {'name': 'Ivan', 'ticker': 'DGX', 'exchange':'NYSE', 'weight': 0.3},
-        {'name': 'Abhi', 'ticker': 'ASR', 'exchange':'NYSE', 'weight': 0.4},
+
+        {'name': 'Abhi', 'ticker': 'ASR', 'exchange':'NYSE', 'weight': 0.25},
         {'name': 'Abhi', 'ticker': '0700', 'exchange':'HKG', 'weight': 0.25},
-        {'name': 'Abhi', 'ticker': 'SMCI', 'exchange':'NASDAQ', 'weight': 0.35},
-        {'name': 'Conor', 'ticker': 'VLA', 'exchange':'EPA', 'weight': 0.2},
+        {'name': 'Abhi', 'ticker': 'SMCI', 'exchange':'NASDAQ', 'weight': 0.25},
+        {'name': 'Abhi', 'ticker': 'BRO', 'exchange':'NASDAQ', 'weight': 0.25},
+        
+        {'name': 'Conor', 'ticker': 'PFE', 'exchange':'NYSE', 'weight': 0.2},
         {'name': 'Conor', 'ticker': 'RR', 'exchange':'LON', 'weight': 0.2},
-        {'name': 'Conor', 'ticker': 'CTC', 'exchange':'TSE', 'weight': 0.2},
-        {'name': 'Conor', 'ticker': 'SHEL', 'exchange':'NYSE', 'weight': 0.2},
-        {'name': 'Conor', 'ticker': 'CRWD', 'exchange':'NASDAQ', 'weight': 0.2},
+        {'name': 'Conor', 'ticker': 'MCD', 'exchange':'NYSE', 'weight': 0.2},
+        {'name': 'Conor', 'ticker': 'SHEL', 'exchange':'LON', 'weight': 0.2},
+        {'name': 'Conor', 'ticker': 'ALV', 'exchange':'XETRA', 'weight': 0.2},
+        
         {'name': 'Diarbhail', 'ticker': 'FLUT', 'exchange':'NYSE', 'weight': 0.34},
         {'name': 'Diarbhail', 'ticker': 'NVDA', 'exchange':'NASDAQ', 'weight': 0.33},
         {'name': 'Diarbhail', 'ticker': 'SCAN', 'exchange':'CVE', 'weight': 0.33},
+
         {'name': 'Radu', 'ticker': 'MP', 'exchange':'NYSE', 'weight': 0.1},
         {'name': 'Radu', 'ticker': 'DBK', 'exchange':'XETRA', 'weight': 0.5},
         {'name': 'Radu', 'ticker': 'RTX', 'exchange':'NYSE', 'weight': 0.2},
         {'name': 'Radu', 'ticker': 'RHM', 'exchange':'XETRA', 'weight': 0.2},
+
         {'name': 'Silvia', 'ticker': 'NVO', 'exchange':'NYSE', 'weight': 0.33},
         {'name': 'Silvia', 'ticker': 'NVDA', 'exchange':'NASDAQ', 'weight': 0.33},
-        {'name': 'Silvia', 'ticker': 'OPRA', 'exchange':'NASDAQ', 'weight': 0.33},
+        {'name': 'Silvia', 'ticker': 'OPRA', 'exchange':'NASDAQ', 'weight': 0.34},
     ]
 
 def save_positions_to_db(db: Session):
