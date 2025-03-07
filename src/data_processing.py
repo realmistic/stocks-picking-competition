@@ -12,7 +12,7 @@ from src.db.models import Position, DailyPrice, ExchangeRate, PortfolioValue, Pe
 # Constants
 INITIAL_VALUE_USD = 1e5
 START_DATE = '2000-01-01'
-FIXED_DATE = '2025-03-01'
+FIXED_DATE = '2025-03-04'
 
 def get_formatted_ticker(ticker, exchange):
     """
