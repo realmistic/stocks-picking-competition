@@ -13,8 +13,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-from src.db.database import get_db, init_db
-from src.db.models import Position, DailyPrice, ExchangeRate, PortfolioValue, PerformanceMetric
+from src.db.database_remote import get_db, execute_query
 from src.data_processing import process_all_data
 
 # Set page config
@@ -25,16 +24,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize database
-init_db()
+# Connect to the remote database
+db = get_db()
 
 # Sidebar
 st.sidebar.title("Stocks Picking Competition")
 st.sidebar.subheader("H1 2025 Analyst Paper Trading Challenge")
 
 # Check if data exists in the database
-db = get_db()
-positions_count = db.query(Position).count()
+positions_query = "SELECT COUNT(*) as count FROM positions"
+positions_count_result = execute_query(positions_query)
+positions_count = positions_count_result['count'].iloc[0] if positions_count_result is not None else 0
 
 if positions_count == 0:
     st.sidebar.warning("No data found in the database. Click the button below to load data.")
@@ -52,229 +52,219 @@ else:
         st.rerun()
 
 # Get the last updated date
-last_updated = db.query(PerformanceMetric.last_updated).order_by(PerformanceMetric.last_updated.desc()).first()
-if last_updated:
-    st.sidebar.info(f"Last updated: {last_updated[0]}")
+last_updated_query = "SELECT last_updated FROM performance_metrics ORDER BY last_updated DESC LIMIT 1"
+last_updated_result = execute_query(last_updated_query)
+if last_updated_result is not None and not last_updated_result.empty:
+    st.sidebar.info(f"Last updated: {last_updated_result['last_updated'].iloc[0]}")
 
 # Main content
 st.title("Stocks Picking Competition Dashboard")
 
 # Get data from database
-positions = db.query(Position).all()
-performance_metrics = db.query(PerformanceMetric).all()
+positions_query = "SELECT * FROM positions"
+positions = execute_query(positions_query)
+
+performance_metrics_query = "SELECT * FROM performance_metrics"
+performance_metrics = execute_query(performance_metrics_query)
 
 # Create DataFrames
-positions_df = pd.DataFrame([
-    {
-        'name': p.name,
-        'ticker': p.ticker,
-        'exchange': p.exchange,
-        'weight': p.weight,
-        'formatted_ticker': p.formatted_ticker,
-        'shares': p.shares,
-        'price_at_start': p.price_at_start,
-        'allocation_usd': p.allocation_usd
-    }
-    for p in positions
-])
+positions_df = positions if positions is not None else pd.DataFrame()
+performance_df = pd.DataFrame()
 
-performance_df = pd.DataFrame([
-    {
-        'Portfolio': p.name,
-        'Initial Value': p.initial_value,
-        'Final Value': p.final_value,
-        'Total Return (%)': p.total_return_pct,
-        'Annualized Return (%)': p.annualized_return_pct
-    }
-    for p in performance_metrics
-])
+if performance_metrics is not None and not performance_metrics.empty:
+    performance_df = pd.DataFrame([
+        {
+            'Portfolio': p['name'],
+            'Initial Value': p['initial_value'],
+            'Final Value': p['final_value'],
+            'Total Return (%)': p['total_return_pct'],
+            'Annualized Return (%)': p['annualized_return_pct']
+        }
+        for _, p in performance_metrics.iterrows()
+    ])
 
 # Calculate person weights
 person_weights = {}
-for position in positions:
-    name = position.name
-    weight = position.weight
-    
-    if name not in person_weights:
-        person_weights[name] = 0
-    
-    person_weights[name] += weight
-
-# Create a DataFrame for visualization
-weights_df = pd.DataFrame({
-    'Person': list(person_weights.keys()),
-    'Total Weight': list(person_weights.values())
-})
-
-# Add a status column
-weights_df['Status'] = weights_df['Total Weight'].apply(lambda x: 'OK' if abs(x - 1.0) < 0.01 else 'ERROR - Not 100%')
-
-# Display portfolio weight distribution
-st.header("Portfolio Weight Distribution")
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    fig = px.bar(
-        weights_df, 
-        x='Person', 
-        y='Total Weight',
-        color='Status',
-        title='Portfolio Weight Distribution by Person',
-        text='Total Weight',
-        color_discrete_map={'OK': 'green', 'ERROR - Not 100%': 'red'}
-    )
-    
-    # Add a horizontal line at 1.0 (100%)
-    fig.add_shape(
-        type="line",
-        x0=-0.5,
-        y0=1.0,
-        x1=len(weights_df)-0.5,
-        y1=1.0,
-        line=dict(color="black", width=2, dash="dash")
-    )
-    
-    # Format the y-axis as percentage
-    fig.update_layout(
-        yaxis=dict(title="Total Weight", tickformat=".0%"),
-        template='presentation'
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-with col2:
-    st.subheader("Weight Summary")
-    for name, total_weight in person_weights.items():
-        status = 'OK' if abs(total_weight - 1.0) < 0.01 else 'ERROR - Not 100%'
-        st.write(f"{name}: {total_weight:.2f} ({status})")
-
-# Display portfolio allocations
-st.header("Portfolio Allocations")
-
-# Check if we have allocation data
-if 'allocation_usd' in positions_df.columns:
-    # Filter out positions without allocations
-    allocations_df = positions_df[positions_df['allocation_usd'].notna()].copy()
-    
-    # Only proceed if we have data
-    if not allocations_df.empty:
-        # Calculate normalized weight
-        normalized_weights = []
-        for _, row in allocations_df.iterrows():
-            normalized_weights.append(row['weight'] / person_weights[row['name']])
+if not positions_df.empty:
+    for _, position in positions_df.iterrows():
+        name = position['name']
+        weight = position['weight']
         
-        allocations_df['normalized_weight'] = normalized_weights
+        if name not in person_weights:
+            person_weights[name] = 0
         
-        fig = px.treemap(
-            allocations_df,
-            path=['name', 'formatted_ticker'],
-            values='allocation_usd',
-            title='Portfolio Allocations by Person and Stock',
-            color='allocation_usd',
-            color_continuous_scale='Viridis',
-            hover_data=['normalized_weight']
+        person_weights[name] += weight
+
+    # Create a DataFrame for visualization
+    weights_df = pd.DataFrame({
+        'Person': list(person_weights.keys()),
+        'Total Weight': list(person_weights.values())
+    })
+
+    # Add a status column
+    weights_df['Status'] = weights_df['Total Weight'].apply(lambda x: 'OK' if abs(x - 1.0) < 0.01 else 'ERROR - Not 100%')
+
+    # Display portfolio weight distribution
+    st.header("Portfolio Weight Distribution")
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        fig = px.bar(
+            weights_df, 
+            x='Person', 
+            y='Total Weight',
+            color='Status',
+            title='Portfolio Weight Distribution by Person',
+            text='Total Weight',
+            color_discrete_map={'OK': 'green', 'ERROR - Not 100%': 'red'}
         )
         
-        fig.update_layout(template='presentation')
-        fig.update_traces(texttemplate="%{label}<br>$%{value:,.0f}<br>%{customdata[0]:.1%}", textposition="middle center")
+        # Add a horizontal line at 1.0 (100%)
+        fig.add_shape(
+            type="line",
+            x0=-0.5,
+            y0=1.0,
+            x1=len(weights_df)-0.5,
+            y1=1.0,
+            line=dict(color="black", width=2, dash="dash")
+        )
+        
+        # Format the y-axis as percentage
+        fig.update_layout(
+            yaxis=dict(title="Total Weight", tickformat=".0%"),
+            template='presentation'
+        )
+        
         st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.subheader("Weight Summary")
+        for name, total_weight in person_weights.items():
+            status = 'OK' if abs(total_weight - 1.0) < 0.01 else 'ERROR - Not 100%'
+            st.write(f"{name}: {total_weight:.2f} ({status})")
+
+    # Display portfolio allocations
+    st.header("Portfolio Allocations")
+
+    # Check if we have allocation data
+    if 'allocation_usd' in positions_df.columns:
+        # Filter out positions without allocations
+        allocations_df = positions_df[positions_df['allocation_usd'].notna()].copy()
+        
+        # Only proceed if we have data
+        if not allocations_df.empty:
+            # Calculate normalized weight
+            normalized_weights = []
+            for _, row in allocations_df.iterrows():
+                normalized_weights.append(row['weight'] / person_weights[row['name']])
+            
+            allocations_df['normalized_weight'] = normalized_weights
+            
+            fig = px.treemap(
+                allocations_df,
+                path=['name', 'formatted_ticker'],
+                values='allocation_usd',
+                title='Portfolio Allocations by Person and Stock',
+                color='allocation_usd',
+                color_continuous_scale='Viridis',
+                hover_data=['normalized_weight']
+            )
+            
+            fig.update_layout(template='presentation')
+            fig.update_traces(texttemplate="%{label}<br>$%{value:,.0f}<br>%{customdata[0]:.1%}", textposition="middle center")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No allocation data available yet. Please load initial data.")
     else:
         st.info("No allocation data available yet. Please load initial data.")
-else:
-    st.info("No allocation data available yet. Please load initial data.")
 
-# Get portfolio values from database
-portfolio_values_data = db.query(PortfolioValue).order_by(PortfolioValue.date).all()
+    # Get portfolio values from database
+    portfolio_values_query = "SELECT * FROM portfolio_values ORDER BY date"
+    portfolio_values_data = execute_query(portfolio_values_query)
 
-# Create DataFrame
-portfolio_values = pd.DataFrame([
-    {
-        'date': pv.date,
-        'name': pv.name,
-        'value': pv.value,
-        'pct_change': pv.pct_change
-    }
-    for pv in portfolio_values_data
-])
+    # Create DataFrame
+    portfolio_values = pd.DataFrame()
+    if portfolio_values_data is not None and not portfolio_values_data.empty:
+        portfolio_values = portfolio_values_data
 
-# Pivot the data
-if not portfolio_values.empty:
-    portfolio_values_pivot = portfolio_values.pivot(index='date', columns='name', values='value')
-    pct_change_pivot = portfolio_values.pivot(index='date', columns='name', values='pct_change')
-    
-    # Display portfolio performance
-    st.header("Portfolio Performance")
-    
-    # Plot the portfolio values over time
-    fig = go.Figure()
-    
-    # Plot individual portfolios
-    for name in portfolio_values_pivot.columns:
-        fig.add_trace(go.Scatter(
-            x=portfolio_values_pivot.index,
-            y=portfolio_values_pivot[name],
-            name=f"{name}'s Portfolio",
-            mode='lines'
-        ))
-    
-    # Add a horizontal line for initial investment
-    fig.add_shape(
-        type="line",
-        x0=portfolio_values_pivot.index[0],
-        y0=100000,  # Initial investment
-        x1=portfolio_values_pivot.index[-1],
-        y1=100000,
-        line=dict(color="red", width=2, dash="dash")
-    )
-    
-    # Update layout
-    fig.update_layout(
-        title='Portfolio Performance Since Start Date',
-        xaxis_title='Date',
-        yaxis_title='Portfolio Value (USD)',
-        template='presentation',
-        hovermode='x unified'
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Plot the percentage change
-    fig = go.Figure()
-    
-    # Plot individual portfolios
-    for name in pct_change_pivot.columns:
-        fig.add_trace(go.Scatter(
-            x=pct_change_pivot.index,
-            y=pct_change_pivot[name],
-            name=f"{name}'s Portfolio",
-            mode='lines'
-        ))
-    
-    # Add a horizontal line at 0%
-    fig.add_shape(
-        type="line",
-        x0=pct_change_pivot.index[0],
-        y0=0,
-        x1=pct_change_pivot.index[-1],
-        y1=0,
-        line=dict(color="red", width=2, dash="dash")
-    )
-    
-    # Update layout
-    fig.update_layout(
-        title='Portfolio Performance (% Change) Since Start Date',
-        xaxis_title='Date',
-        yaxis_title='Percentage Change (%)',
-        template='presentation',
-        hovermode='x unified'
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
+    # Pivot the data
+    if not portfolio_values.empty:
+        portfolio_values_pivot = portfolio_values.pivot(index='date', columns='name', values='value')
+        pct_change_pivot = portfolio_values.pivot(index='date', columns='name', values='pct_change')
+        
+        # Display portfolio performance
+        st.header("Portfolio Performance")
+        
+        # Plot the portfolio values over time
+        fig = go.Figure()
+        
+        # Plot individual portfolios
+        for name in portfolio_values_pivot.columns:
+            fig.add_trace(go.Scatter(
+                x=portfolio_values_pivot.index,
+                y=portfolio_values_pivot[name],
+                name=f"{name}'s Portfolio",
+                mode='lines'
+            ))
+        
+        # Add a horizontal line for initial investment
+        fig.add_shape(
+            type="line",
+            x0=portfolio_values_pivot.index[0],
+            y0=100000,  # Initial investment
+            x1=portfolio_values_pivot.index[-1],
+            y1=100000,
+            line=dict(color="red", width=2, dash="dash")
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title='Portfolio Performance Since Start Date',
+            xaxis_title='Date',
+            yaxis_title='Portfolio Value (USD)',
+            template='presentation',
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Plot the percentage change
+        fig = go.Figure()
+        
+        # Plot individual portfolios
+        for name in pct_change_pivot.columns:
+            fig.add_trace(go.Scatter(
+                x=pct_change_pivot.index,
+                y=pct_change_pivot[name],
+                name=f"{name}'s Portfolio",
+                mode='lines'
+            ))
+        
+        # Add a horizontal line at 0%
+        fig.add_shape(
+            type="line",
+            x0=pct_change_pivot.index[0],
+            y0=0,
+            x1=pct_change_pivot.index[-1],
+            y1=0,
+            line=dict(color="red", width=2, dash="dash")
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title='Portfolio Performance (% Change) Since Start Date',
+            xaxis_title='Date',
+            yaxis_title='Percentage Change (%)',
+            template='presentation',
+            hovermode='x unified'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
 
 # Display performance metrics
-st.header("Performance Summary")
-
 if not performance_df.empty:
+    st.header("Performance Summary")
+    
     # Sort the data to make the visualization more informative
     performance_data = performance_df.sort_values('Total Return (%)', ascending=False)
     
